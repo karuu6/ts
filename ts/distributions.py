@@ -1,17 +1,19 @@
 import numpy as np
 from abc import ABC, abstractmethod
 from scipy import stats
+from typing import List, Optional, Union, Tuple, Any
 
 
 class Distribution(ABC):
     """Base class for all distributions."""
     
     @abstractmethod
-    def __init__(self):
+    def __init__(self) -> None:
         pass
     
     @abstractmethod
-    def loglikelihood(self, eps, sigma2, params):
+    def loglikelihood(self, eps: np.ndarray, sigma2: np.ndarray, 
+                      params: Optional[np.ndarray] = None) -> float:
         """Compute log-likelihood for the distribution.
         
         Parameters
@@ -20,7 +22,7 @@ class Distribution(ABC):
             Standardized residuals
         sigma2 : np.ndarray
             Conditional variances
-        params : np.ndarray
+        params : np.ndarray, optional
             Distribution parameters
             
         Returns
@@ -31,14 +33,15 @@ class Distribution(ABC):
         pass
     
     @abstractmethod
-    def simulate(self, nobs, params, rng=None):
+    def simulate(self, nobs: int, params: Optional[np.ndarray] = None,
+                 rng: Optional[np.random.Generator] = None) -> np.ndarray:
         """Simulate data from the distribution.
         
         Parameters
         ----------
         nobs : int
             Number of observations to simulate
-        params : np.ndarray
+        params : np.ndarray, optional
             Distribution parameters
         rng : np.random.Generator, optional
             Random number generator
@@ -51,7 +54,7 @@ class Distribution(ABC):
         pass
     
     @abstractmethod
-    def starting_params(self, standardized_residuals):
+    def starting_params(self, standardized_residuals: np.ndarray) -> np.ndarray:
         """Compute starting parameters for the distribution.
         
         Parameters
@@ -67,7 +70,7 @@ class Distribution(ABC):
         pass
     
     @abstractmethod
-    def param_names(self):
+    def param_names(self) -> List[str]:
         """Get parameter names for the distribution.
         
         Returns
@@ -78,7 +81,7 @@ class Distribution(ABC):
         pass
     
     @abstractmethod
-    def num_params(self):
+    def num_params(self) -> int:
         """Get number of parameters in the distribution.
         
         Returns
@@ -92,10 +95,11 @@ class Distribution(ABC):
 class Normal(Distribution):
     """Normal distribution."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
     
-    def loglikelihood(self, eps, sigma2, params=None):
+    def loglikelihood(self, eps: np.ndarray, sigma2: np.ndarray, 
+                      params: Optional[np.ndarray] = None) -> float:
         """Compute log-likelihood for the normal distribution.
         
         Parameters
@@ -116,7 +120,8 @@ class Normal(Distribution):
         ll = -0.5 * nobs * np.log(2 * np.pi) - 0.5 * np.sum(np.log(sigma2)) - 0.5 * np.sum(eps**2 / sigma2)
         return ll
     
-    def simulate(self, nobs, params=None, rng=None):
+    def simulate(self, nobs: int, params: Optional[np.ndarray] = None,
+                 rng: Optional[np.random.Generator] = None) -> np.ndarray:
         """Simulate data from the normal distribution.
         
         Parameters
@@ -138,7 +143,7 @@ class Normal(Distribution):
         
         return rng.standard_normal(nobs)
     
-    def starting_params(self, standardized_residuals):
+    def starting_params(self, standardized_residuals: np.ndarray) -> np.ndarray:
         """Compute starting parameters for the normal distribution.
         
         Parameters
@@ -153,7 +158,7 @@ class Normal(Distribution):
         """
         return np.array([])
     
-    def param_names(self):
+    def param_names(self) -> List[str]:
         """Get parameter names for the normal distribution.
         
         Returns
@@ -163,7 +168,7 @@ class Normal(Distribution):
         """
         return []
     
-    def num_params(self):
+    def num_params(self) -> int:
         """Get number of parameters in the normal distribution.
         
         Returns
@@ -177,10 +182,10 @@ class Normal(Distribution):
 class T(Distribution):
     """Student's t distribution."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
     
-    def loglikelihood(self, eps, sigma2, params):
+    def loglikelihood(self, eps: np.ndarray, sigma2: np.ndarray, params: np.ndarray) -> float:
         """Compute log-likelihood for the Student's t distribution.
         
         Parameters
@@ -202,8 +207,8 @@ class T(Distribution):
         
         # Compute log-likelihood for t distribution
         const = (
-            np.log(gamma((nu + 1) / 2))
-            - np.log(gamma(nu / 2))
+            stats.gamma.logpdf((nu + 1) / 2)
+            - stats.gamma.logpdf(nu / 2)
             - 0.5 * np.log(np.pi * (nu - 2))
         )
         
@@ -213,7 +218,8 @@ class T(Distribution):
         
         return ll
     
-    def simulate(self, nobs, params, rng=None):
+    def simulate(self, nobs: int, params: np.ndarray, 
+                 rng: Optional[np.random.Generator] = None) -> np.ndarray:
         """Simulate data from the Student's t distribution.
         
         Parameters
@@ -236,7 +242,7 @@ class T(Distribution):
         
         return stats.t.rvs(nu, size=nobs, random_state=rng)
     
-    def starting_params(self, standardized_residuals):
+    def starting_params(self, standardized_residuals: np.ndarray) -> np.ndarray:
         """Compute starting parameters for the Student's t distribution.
         
         Parameters
@@ -252,7 +258,7 @@ class T(Distribution):
         # Start with a reasonable degrees of freedom (e.g., 8)
         return np.array([8.0])
     
-    def param_names(self):
+    def param_names(self) -> List[str]:
         """Get parameter names for the Student's t distribution.
         
         Returns
@@ -262,7 +268,7 @@ class T(Distribution):
         """
         return ['nu']
     
-    def num_params(self):
+    def num_params(self) -> int:
         """Get number of parameters in the Student's t distribution.
         
         Returns

@@ -1,12 +1,16 @@
 import numpy as np
 import pandas as pd
+from scipy import stats
+from typing import List, Optional, Dict, Any, Union
 
 
 class Results:
     """Class to hold estimation results."""
     
-    def __init__(self, model, params, param_names, loglikelihood, residuals, 
-                 std_residuals, conditional_variance, cov_params=None):
+    def __init__(self, model: Any, params: np.ndarray, param_names: List[str], 
+                 loglikelihood: float, residuals: np.ndarray, 
+                 std_residuals: np.ndarray, conditional_variance: np.ndarray, 
+                 cov_params: Optional[np.ndarray] = None) -> None:
         """Initialize Results object.
         
         Parameters
@@ -43,7 +47,7 @@ class Results:
         self.aic = -2 * loglikelihood + 2 * self.k
         self.bic = -2 * loglikelihood + np.log(self.nobs) * self.k
     
-    def summary(self):
+    def summary(self) -> None:
         """Print a summary of the estimation results."""
         params_df = pd.DataFrame({
             'Parameter': self.param_names,

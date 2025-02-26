@@ -1,17 +1,20 @@
 import numpy as np
 import pandas as pd
 from scipy import optimize
+from typing import List, Optional, Tuple, Dict, Any, Union, Callable
 
-from .mean import Constant as ConstantMean
-from .variance import Constant as ConstantVariance
-from .distributions import Normal
+from .mean import MeanModel, Constant as ConstantMean
+from .variance import VarianceModel, Constant as ConstantVariance
+from .distributions import Distribution, Normal
 from .results import Results
 
 
 class UnivariateTimeSeries:
     """Univariate time series model with flexible mean, variance, and distribution specifications."""
     
-    def __init__(self, mean_model=None, variance_model=None, distribution=None):
+    def __init__(self, mean_model: Optional[MeanModel] = None, 
+                 variance_model: Optional[VarianceModel] = None, 
+                 distribution: Optional[Distribution] = None) -> None:
         """Initialize the univariate time series model.
         
         Parameters
@@ -28,10 +31,10 @@ class UnivariateTimeSeries:
         self.distribution = distribution if distribution is not None else Normal()
         
         # Store data
-        self.data = None
-        self.nobs = 0
+        self.data: Optional[np.ndarray] = None
+        self.nobs: int = 0
     
-    def _split_params(self, params):
+    def _split_params(self, params: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Split parameters into mean, variance, and distribution parameters.
         
         Parameters
@@ -53,7 +56,7 @@ class UnivariateTimeSeries:
         
         return mean_params, variance_params, dist_params
     
-    def _loglikelihood(self, params):
+    def _loglikelihood(self, params: np.ndarray) -> float:
         """Compute the negative log-likelihood for optimization.
         
         Parameters
@@ -80,7 +83,7 @@ class UnivariateTimeSeries:
         # Return negative log-likelihood for minimization
         return -ll
     
-    def _get_starting_params(self):
+    def _get_starting_params(self) -> np.ndarray:
         """Get starting parameters for optimization.
         
         Returns
@@ -91,13 +94,13 @@ class UnivariateTimeSeries:
         # Get starting parameters for mean model
         mean_params = self.mean_model.starting_params(self.data)
         
-        # Compute residuals using starting mean parameters
+        # Compute residuals using mean model starting parameters
         residuals = self.mean_model.compute_residuals(self.data, mean_params)
         
         # Get starting parameters for variance model
         variance_params = self.variance_model.starting_params(residuals)
         
-        # Compute conditional variances using starting variance parameters
+        # Compute conditional variances using variance model starting parameters
         sigma2 = self.variance_model.compute_variance(residuals, variance_params)
         
         # Compute standardized residuals
@@ -109,13 +112,13 @@ class UnivariateTimeSeries:
         # Combine all starting parameters
         return np.concatenate([mean_params, variance_params, dist_params])
     
-    def _get_param_names(self):
-        """Get parameter names.
+    def _get_param_names(self) -> List[str]:
+        """Get parameter names for all model components.
         
         Returns
         -------
         list
-            Parameter names
+            List of parameter names
         """
         mean_names = self.mean_model.param_names()
         variance_names = self.variance_model.param_names()
@@ -123,30 +126,32 @@ class UnivariateTimeSeries:
         
         return mean_names + variance_names + dist_names
     
-    def fit(self, data, method='BFGS', options=None):
-        """Fit the model to data.
+    def fit(self, data: Union[np.ndarray, pd.Series], 
+            method: str = 'BFGS', 
+            options: Optional[Dict[str, Any]] = None) -> Results:
+        """Fit the model to the data using maximum likelihood.
         
         Parameters
         ----------
         data : array_like
-            Time series data
+            Time series data to fit
         method : str, optional
             Optimization method for scipy.optimize.minimize
         options : dict, optional
-            Options for the optimizer
+            Options to pass to scipy.optimize.minimize
             
         Returns
         -------
         Results
             Estimation results
         """
-        # Convert data to numpy array
+        # Convert data to numpy array if needed
         if isinstance(data, pd.Series):
-            self.data = data.values
-        else:
-            self.data = np.asarray(data)
+            data = data.values
         
-        self.nobs = len(self.data)
+        # Store data
+        self.data = data
+        self.nobs = len(data)
         
         # Get starting parameters
         start_params = self._get_starting_params()
@@ -198,7 +203,8 @@ class UnivariateTimeSeries:
         
         return results
     
-    def simulate(self, nobs, params=None, burn=100, rng=None):
+    def simulate(self, nobs: int, params: Optional[np.ndarray] = None, 
+                 burn: int = 100, rng: Optional[np.random.Generator] = None) -> np.ndarray:
         """Simulate data from the model.
         
         Parameters

@@ -1,16 +1,18 @@
 import numpy as np
 from abc import ABC, abstractmethod
+from typing import List, Optional, Union, Tuple, Any
 
 
 class VarianceModel(ABC):
     """Base class for all variance models."""
     
     @abstractmethod
-    def __init__(self):
+    def __init__(self) -> None:
         pass
     
     @abstractmethod
-    def simulate(self, nobs, params, rng=None):
+    def simulate(self, nobs: int, params: np.ndarray, 
+                 rng: Optional[np.random.Generator] = None) -> np.ndarray:
         """Simulate data from the variance model.
         
         Parameters
@@ -30,7 +32,7 @@ class VarianceModel(ABC):
         pass
     
     @abstractmethod
-    def compute_variance(self, residuals, params):
+    def compute_variance(self, residuals: np.ndarray, params: np.ndarray) -> np.ndarray:
         """Compute conditional variances for the variance model.
         
         Parameters
@@ -48,7 +50,7 @@ class VarianceModel(ABC):
         pass
     
     @abstractmethod
-    def starting_params(self, residuals):
+    def starting_params(self, residuals: np.ndarray) -> np.ndarray:
         """Compute starting parameters for the variance model.
         
         Parameters
@@ -64,7 +66,7 @@ class VarianceModel(ABC):
         pass
     
     @abstractmethod
-    def param_names(self):
+    def param_names(self) -> List[str]:
         """Get parameter names for the variance model.
         
         Returns
@@ -75,7 +77,7 @@ class VarianceModel(ABC):
         pass
     
     @abstractmethod
-    def num_params(self):
+    def num_params(self) -> int:
         """Get number of parameters in the variance model.
         
         Returns
@@ -89,34 +91,36 @@ class VarianceModel(ABC):
 class Constant(VarianceModel):
     """Constant variance model."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
     
-    def simulate(self, nobs, params, rng=None):
+    def simulate(self, nobs: int, params: np.ndarray, 
+                 rng: Optional[np.random.Generator] = None) -> np.ndarray:
         return np.full(nobs, params[0])
     
-    def compute_variance(self, residuals, params):
+    def compute_variance(self, residuals: np.ndarray, params: np.ndarray) -> np.ndarray:
         return np.full_like(residuals, params[0])
     
-    def starting_params(self, residuals):
+    def starting_params(self, residuals: np.ndarray) -> np.ndarray:
         return np.array([np.var(residuals)])
     
-    def param_names(self):
+    def param_names(self) -> List[str]:
         return ['omega']
     
-    def num_params(self):
+    def num_params(self) -> int:
         return 1
 
 
 class GARCH(VarianceModel):
     """GARCH(p,q) variance model."""
     
-    def __init__(self, p=1, q=1):
+    def __init__(self, p: int = 1, q: int = 1) -> None:
         super().__init__()
         self.p = p
         self.q = q
     
-    def simulate(self, nobs, params, errors=None, rng=None):
+    def simulate(self, nobs: int, params: np.ndarray, errors: Optional[np.ndarray] = None,
+                 rng: Optional[np.random.Generator] = None) -> np.ndarray:
         """Simulate from a GARCH process.
         
         Parameters
@@ -135,10 +139,42 @@ class GARCH(VarianceModel):
         np.ndarray
             Simulated conditional variances
         """
-        # Stub implementation - will be filled in later
-        return np.ones(nobs)
+        if rng is None:
+            rng = np.random.default_rng()
+            
+        # Extract parameters
+        omega = params[0]
+        alpha = params[1:1+self.q] if self.q > 0 else np.array([])
+        beta = params[1+self.q:] if self.p > 0 else np.array([])
+        
+        # Generate innovations if not provided
+        if errors is None:
+            errors = rng.standard_normal(nobs)
+            
+        # Initialize arrays
+        sigma2 = np.zeros(nobs)
+        sigma2[0] = omega / (1 - np.sum(alpha) - np.sum(beta))  # Unconditional variance
+        
+        # Generate conditional variances
+        for t in range(1, nobs):
+            # ARCH component
+            arch_term = 0
+            for i in range(min(t, self.q)):
+                if t-i-1 >= 0:
+                    arch_term += alpha[i] * errors[t-i-1]**2
+            
+            # GARCH component
+            garch_term = 0
+            for j in range(min(t, self.p)):
+                if t-j-1 >= 0:
+                    garch_term += beta[j] * sigma2[t-j-1]
+            
+            # Combine components
+            sigma2[t] = omega + arch_term + garch_term
+        
+        return sigma2
     
-    def compute_variance(self, residuals, params):
+    def compute_variance(self, residuals: np.ndarray, params: np.ndarray) -> np.ndarray:
         """Compute conditional variances for the GARCH model.
         
         Parameters
@@ -153,10 +189,39 @@ class GARCH(VarianceModel):
         np.ndarray
             Conditional variances
         """
-        # Stub implementation - will be filled in later
-        return np.ones_like(residuals)
+        nobs = len(residuals)
+        
+        # Extract parameters
+        omega = params[0]
+        alpha = params[1:1+self.q] if self.q > 0 else np.array([])
+        beta = params[1+self.q:] if self.p > 0 else np.array([])
+        
+        # Initialize arrays
+        sigma2 = np.zeros(nobs)
+        
+        # Set initial variance to unconditional variance
+        sigma2[0] = omega / (1 - np.sum(alpha) - np.sum(beta))
+        
+        # Compute conditional variances
+        for t in range(1, nobs):
+            # ARCH component
+            arch_term = 0
+            for i in range(min(t, self.q)):
+                if t-i-1 >= 0:
+                    arch_term += alpha[i] * residuals[t-i-1]**2
+            
+            # GARCH component
+            garch_term = 0
+            for j in range(min(t, self.p)):
+                if t-j-1 >= 0:
+                    garch_term += beta[j] * sigma2[t-j-1]
+            
+            # Combine components
+            sigma2[t] = omega + arch_term + garch_term
+        
+        return sigma2
     
-    def starting_params(self, residuals):
+    def starting_params(self, residuals: np.ndarray) -> np.ndarray:
         """Compute starting parameters for the GARCH model.
         
         Parameters
@@ -169,16 +234,23 @@ class GARCH(VarianceModel):
         np.ndarray
             Starting parameters: [omega, alpha_1, ..., alpha_q, beta_1, ..., beta_p]
         """
-        # Stub implementation - will be filled in later
+        # Initialize parameters
         params = np.zeros(1 + self.p + self.q)
+        
+        # Set omega to a fraction of the unconditional variance
         params[0] = np.var(residuals) * 0.1  # omega
+        
+        # Set ARCH parameters
         if self.q > 0:
             params[1:1+self.q] = 0.05  # alpha
+        
+        # Set GARCH parameters
         if self.p > 0:
             params[1+self.q:] = 0.8  # beta
+            
         return params
     
-    def param_names(self):
+    def param_names(self) -> List[str]:
         """Get parameter names for the GARCH model.
         
         Returns
@@ -191,7 +263,7 @@ class GARCH(VarianceModel):
         names.extend([f'beta_{i+1}' for i in range(self.p)])
         return names
     
-    def num_params(self):
+    def num_params(self) -> int:
         """Get number of parameters in the GARCH model.
         
         Returns
