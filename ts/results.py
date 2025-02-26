@@ -1,18 +1,17 @@
 import numpy as np
 import pandas as pd
-from scipy import stats
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Any
 
 
 class Results:
     """Class to hold estimation results."""
-    
-    def __init__(self, model: Any, params: np.ndarray, param_names: List[str], 
-                 loglikelihood: float, residuals: np.ndarray, 
-                 std_residuals: np.ndarray, conditional_variance: np.ndarray, 
-                 cov_params: Optional[np.ndarray] = None) -> None:
+
+    def __init__(self, model: Any, params: np.ndarray, param_names: List[str],
+                 loglikelihood: float, residuals: np.ndarray,
+                 std_residuals: np.ndarray,
+                 ) -> None:
         """Initialize Results object.
-        
+
         Parameters
         ----------
         model : UnivariateTimeSeries
@@ -38,31 +37,20 @@ class Results:
         self.loglikelihood = loglikelihood
         self.residuals = residuals
         self.std_residuals = std_residuals
-        self.conditional_variance = conditional_variance
-        self.cov_params = cov_params
-        
+
         # Compute information criteria
         self.nobs = len(residuals)
         self.k = len(params)
         self.aic = -2 * loglikelihood + 2 * self.k
         self.bic = -2 * loglikelihood + np.log(self.nobs) * self.k
-    
+
     def summary(self) -> None:
         """Print a summary of the estimation results."""
         params_df = pd.DataFrame({
             'Parameter': self.param_names,
             'Estimate': self.params
         })
-        
-        if self.cov_params is not None:
-            std_errors = np.sqrt(np.diag(self.cov_params))
-            t_values = self.params / std_errors
-            p_values = 2 * (1 - stats.norm.cdf(np.abs(t_values)))
-            
-            params_df['Std. Error'] = std_errors
-            params_df['t-value'] = t_values
-            params_df['p-value'] = p_values
-        
+
         print("Model Estimation Results")
         print("========================")
         print(f"Log-likelihood: {self.loglikelihood:.4f}")
@@ -70,4 +58,4 @@ class Results:
         print(f"BIC: {self.bic:.4f}")
         print(f"Number of observations: {self.nobs}")
         print("\nParameters:")
-        print(params_df.to_string(index=False)) 
+        print(params_df.to_string(index=False))
